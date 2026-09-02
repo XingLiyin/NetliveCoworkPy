@@ -390,7 +390,7 @@ dependencies = [
     { name = "typing-extensions" },
 ]
 wheels = [
-    { filename = "ctx_weft-0.1.0-py3-none-any.whl", hash = "sha256:02466d32875a005be54e12bbe32f7ee10d4175290626779ef0b29acb1e7e3e57" },
+    { filename = "ctx_weft-0.1.0-py3-none-any.whl", hash = "sha256:7320b59d5b603d4381634be34a5094574d7d5ab0c40eaa06fd949f5ac76873fb" },
 ]
 
 [package.optional-dependencies]
