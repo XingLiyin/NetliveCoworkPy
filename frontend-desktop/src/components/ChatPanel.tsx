@@ -1189,7 +1189,9 @@ export function ChatPanel({ sessionId, sse, pendingSession, user, onSessionCreat
       waitReplyMut.mutate({ text: pausedReplyText(prompt, skillName, text) })
       return
     }
-    sendMut.mutate({ content: prompt, skillName })
+    // 消息体发**原始输入**（含 /skillName），会话里就显示成用户输入的样子；
+    // skill 仍走结构化 skillName 绑定，不受影响。
+    sendMut.mutate({ content: text, skillName })
   }
 
   // 由 Composer 上抛的提交（正文 + 下拉里刚选中的 skill）。
@@ -1271,8 +1273,9 @@ export function ChatPanel({ sessionId, sse, pendingSession, user, onSessionCreat
 
     // Pending mode: first message triggers session creation
     if (pendingSession) {
-      const { skillName, prompt } = parseSkillCommand(text, skills, picked)
-      createMut.mutate({ text: prompt, skillName })
+      const { skillName } = parseSkillCommand(text, skills, picked)
+      // 发原始输入（含 /skillName），首条消息就显示成用户输入的样子；skill 走结构化绑定。
+      createMut.mutate({ text, skillName })
       return
     }
 
@@ -1315,8 +1318,8 @@ export function ChatPanel({ sessionId, sse, pendingSession, user, onSessionCreat
       const firstAbuse = detectAbuse(text)
       if (firstAbuse) reactToAbuse(firstAbuse)
       pendingHistory.commit(text)
-      const { skillName, prompt } = parseSkillCommand(text, skills, pendingSkillMenu.picked)
-      createMut.mutate({ text: prompt, skillName })
+      const { skillName } = parseSkillCommand(text, skills, pendingSkillMenu.picked)
+      createMut.mutate({ text, skillName })
     }
     function onPendingKeyDown(e: React.KeyboardEvent) {
       if (pendingSkillMenu.onKeyDown(e)) return   // 补全消费了该按键
