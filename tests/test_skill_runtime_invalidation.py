@@ -186,3 +186,126 @@ def test_providers_invalidated_before_executor(primed):
 
     invalidate_local_skill_runtime(registry)
     assert order == ["wrapper", "executor"]
+
+
+# ── 2.3 API 级回归：路由自身的刷新路径接到真实运行时 ───────────────────────────
+
+
+class _FakeImportService:
+    """只负责把"zip"落到磁盘——真实 Provider 自己扫目录。"""
+
+    def __init__(self, skills_dir: Path):
+        self._dir = skills_dir
+
+    def import_skill(self, data: bytes) -> dict:
+        _write_skill(self._dir, "demo", "# API 导入的正文\n")
+        return {"skill_id": "demo", "name": "demo", "description": "d",
+                "version": "1.0", "triggers": []}
+
+    def delete_skill(self, skill_id: str) -> None:
+        import shutil
+        shutil.rmtree(self._dir / skill_id)
+
+    def read_skill_zip(self, skill_id: str):
+        raise NotImplementedError
+
+
+class _FakeOwners:
+    def __init__(self) -> None:
+        self.labels: dict[str, list[str]] = {}
+
+    def set_labels(self, sid: str, labels) -> None:
+        self.labels[sid] = list(labels)
+
+    def forget(self, sid: str) -> None:
+        self.labels.pop(sid, None)
+
+
+class _FakeRefStore:
+    def get_by_id(self, rid): return None
+    def get_reference(self, s, r): return None
+
+
+class _RuntimeStub:
+    """路由刷新入口只认 rt.providers——把真实 registry 挂上去。"""
+
+    def __init__(self, registry) -> None:
+        self.providers = registry
+
+
+def _wire_runtime(monkeypatch, registry, owners):
+    from netlivecowork.api import deps as deps_mod
+    from netlivecowork.api import skills as skills_api
+
+    monkeypatch.setattr(deps_mod, "get_runtime_optional", lambda: _RuntimeStub(registry))
+    monkeypatch.setattr(skills_api, "_local_owners", lambda: owners)
+
+
+def test_api_import_then_delete_roundtrip_without_restart(primed, monkeypatch):
+    """缓存预热 → import 路由 → SkillExecutor 按名读到正文 → delete 路由 → 一致消失。
+    全程不重建 runtime、不手工调用失效函数——走的就是路由自己的刷新路径。"""
+    from netlivecowork.api import skills as skills_api
+    from netlivecowork.providers.capability.skills.errors import SkillError  # noqa: F401
+
+    skills_dir, registry, inner, wrapper, executor, ctx = primed
+    owners = _FakeOwners()
+    _wire_runtime(monkeypatch, registry, owners)
+    svc = _FakeImportService(skills_dir)
+
+    import asyncio
+
+    class _File:
+        async def read(self):
+            return b"zip"
+
+    asyncio.run(skills_api.import_local_skill(file=_File(), coworks="*", service=svc))
+
+    async def after_import():
+        await executor._ensure_index(ctx)               # 按名执行索引重建
+        entry = executor._index.get("local_skill__demo")
+        assert entry is not None, "导入后 executor 按名索引应包含新 skill"
+        provider, bare = entry
+        d = await provider.load_definition(bare, ctx)
+        assert d is not None and "API 导入的正文" in d.instructions
+    asyncio.run(after_import())
+
+    skills_api.delete_local_skill("demo", service=svc, ref_store=_FakeRefStore(),
+                                  reconciler=type("R", (), {
+                                      "user_delete": staticmethod(lambda rid: True),
+                                      "user_set_labels": staticmethod(lambda rid, l: True),
+                                      "user_reference": staticmethod(lambda ref, pid: ""),
+                                  })())
+
+    async def after_delete():
+        assert (await wrapper.list(ctx)) == []
+        await executor._ensure_index(ctx)
+        assert "local_skill__demo" not in executor._index
+    asyncio.run(after_delete())
+
+
+# ── 2.4 归属切换：通用 ↔ 限定，相交/不相交会话的可见性随刷新生效 ───────────────
+
+
+def test_visibility_flips_with_label_change(primed, monkeypatch):
+    skills_dir, registry, inner, wrapper, executor, ctx = primed
+    _write_skill(skills_dir, "demo")
+    owners: dict[str, list[str]] = {"demo": ["*"]}
+    wrapper._skill_labels_fn = lambda name: owners.get(name, ["*"])
+
+    invalidate_local_skill_runtime(registry)
+
+    async def owned(session_labels):
+        wrapper._owned_labels_fn = lambda s: set(session_labels)
+        return [c.name for c in await wrapper.list(ctx)]
+
+    import asyncio
+    assert asyncio.run(owned(None)) == ["demo"]            # 不设限：可见（预热+通用）
+
+    owners["demo"] = ["ipmaster"]                           # 通用 → 限定
+    invalidate_local_skill_runtime(registry)
+    assert asyncio.run(owned({"ipmaster"})) == ["demo"]     # 相交：可见
+    assert asyncio.run(owned({"mbb"})) == []                # 不相交：不可见
+
+    owners["demo"] = ["*"]                                  # 恢复通用
+    invalidate_local_skill_runtime(registry)
+    assert asyncio.run(owned({"mbb"})) == ["demo"]          # 又可见
