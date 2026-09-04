@@ -4,7 +4,7 @@ import {
   FolderIcon, FileIcon, FileCodeIcon, FileTextIcon, FileImageIcon,
   FileTypeIcon, FileSpreadsheetIcon, PresentationIcon,
   ChevronRightIcon, RefreshCwIcon, FolderOpenIcon, ArrowLeftIcon, FolderInputIcon, XIcon,
-  CloudIcon, UploadCloudIcon, DownloadIcon, Trash2Icon,
+  CloudIcon, UploadCloudIcon, DownloadIcon, Trash2Icon, WorkflowIcon,
 } from 'lucide-react'
 import { fileType, getExt, type PreviewType } from '@/preview/fileType'
 
@@ -458,7 +458,8 @@ function BreadcrumbChip({ label, active, onClick }: { label: string; active: boo
   )
 }
 
-function FileRow({ name, isDir, size, onNavigate, onOpen, onOpenLocal, onRemove, onDownload, onDropFiles, removeDestructive }: {
+// 导出仅为测试：单击/双击状态机是文件交互的承重梁（PR #29），值得直接钉在组件层。
+export function FileRow({ name, isDir, size, onNavigate, onOpen, onOpenLocal, onRemove, onDownload, onDropFiles, removeDestructive }: {
   name: string
   isDir: boolean
   size?: number | null
@@ -593,6 +594,7 @@ const FILE_ICONS: Record<PreviewType, { Icon: FileIconComponent; color: string }
   excel:    { Icon: FileSpreadsheetIcon, color: 'var(--green)' },
   pptx:     { Icon: PresentationIcon,    color: 'var(--amber)' },
   html:     { Icon: FileCodeIcon,        color: 'var(--amber)' },
+  drawio:   { Icon: WorkflowIcon,        color: '#e8710a' },
   image:    { Icon: FileImageIcon,       color: 'var(--green)' },
   code:     { Icon: FileCodeIcon,        color: 'var(--blue)' },
   markdown: { Icon: FileTextIcon,        color: 'var(--teal)' },

@@ -1,0 +1,28 @@
+<!doctype html>
+<!-- Draw.io 预览的隔离壳（spike 版）。真实实现以同一骨架进 public/：
+     sandbox="allow-scripts" 由父页面写在 <iframe> 上；本文档自带只作用于自身的 CSP。
+     脚本顺序有讲究：pre.js（MathJax 存根，挡掉 initMath 的外联尝试）→ viewer.min.js
+     （官方只读引擎，逐字节不动）→ bootstrap.js（我们的协议与渲染逻辑）。 -->
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none';
+               script-src 'self';
+               style-src 'self' 'unsafe-inline';
+               img-src 'self' data: blob:;
+               font-src 'self' data:;
+               connect-src 'none';
+               form-action 'none'; base-uri 'none'">
+<style>
+  html, body { margin: 0; height: 100%; background: #fff; }
+  #graph { position: absolute; inset: 0; }
+</style>
+</head>
+<body>
+<div id="graph"></div>
+<script src="pre.js"></script>
+<script src="viewer.min.js"></script>
+<script src="bootstrap.js"></script>
+</body>
+</html>

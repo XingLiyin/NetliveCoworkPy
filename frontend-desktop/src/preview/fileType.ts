@@ -1,6 +1,10 @@
 export type PreviewType =
   | 'image' | 'markdown' | 'docx' | 'excel'
-  | 'code' | 'text' | 'pdf' | 'pptx' | 'html' | 'binary'
+  | 'code' | 'text' | 'pdf' | 'pptx' | 'html' | 'drawio' | 'binary'
+
+// Draw.io 图表：精确扩展名路由（大小写不敏感）。.xml 不在此列——它是通用格式，
+// 继续按代码预览；只有显式 .drawio/.dio 才进只读图预览（设计决策 2）。
+const DRAWIO_EXTS = new Set(['drawio', 'dio'])
 
 const IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'ico', 'svg', 'avif'])
 const MD_EXTS = new Set(['md', 'markdown'])
@@ -53,6 +57,7 @@ export function fileType(ext: string): PreviewType {
   if (PDF_EXTS.has(ext)) return 'pdf'
   if (PPTX_EXTS.has(ext)) return 'pptx'
   if (HTML_EXTS.has(ext)) return 'html'
+  if (DRAWIO_EXTS.has(ext)) return 'drawio'
   if (ext in CODE_LANGS) return 'code'
   if (TEXT_EXTS.has(ext)) return 'text'
   return 'binary'

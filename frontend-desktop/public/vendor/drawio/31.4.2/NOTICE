@@ -1,0 +1,11 @@
+This product includes software developed by JGraph Ltd and the draw.io /
+diagrams.net contributors (the diagrams.net read-only viewer, viewer.min.js),
+licensed under the Apache License, Version 2.0 (see LICENSE in this directory).
+
+Upstream project: https://github.com/jgraph/drawio
+Pinned copy source: https://viewer.diagrams.net/js/viewer.min.js (version 31.4.2,
+SHA-256 recorded in manifest.json, retrieved 2026-09-04).
+
+The pinned viewer.min.js is unmodified. Integration glue (sandboxed iframe host,
+CSP, message protocol) lives outside this directory in public/drawio-preview/
+and is authored by the NetLIVE Cowork project.
