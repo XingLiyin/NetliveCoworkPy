@@ -458,7 +458,8 @@ function BreadcrumbChip({ label, active, onClick }: { label: string; active: boo
   )
 }
 
-function FileRow({ name, isDir, size, onNavigate, onOpen, onOpenLocal, onRemove, onDownload, onDropFiles, removeDestructive }: {
+// 导出仅为测试：单击/双击状态机是文件交互的承重梁（PR #29），值得直接钉在组件层。
+export function FileRow({ name, isDir, size, onNavigate, onOpen, onOpenLocal, onRemove, onDownload, onDropFiles, removeDestructive }: {
   name: string
   isDir: boolean
   size?: number | null
