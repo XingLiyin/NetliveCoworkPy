@@ -283,9 +283,13 @@ function Workspace({ sessionId, workingDir, onClose, onPreviewFile, active = tru
                 <FolderInputIcon size={12} />
               </IconBtn>
             )}
-            <IconBtn title={t('workspace.downloadFolder')} onClick={() => void downloadCurrentFolder()}>
-              {downloading ? <Spinner className="w-3 h-3" /> : <DownloadIcon size={12} />}
-            </IconBtn>
+            {/* 下载只在云端给：地端文件本来就在用户自己磁盘上，"下载"是在拷一份不存在的东西——
+                要用文件直接去磁盘（在文件管理器中打开），不需要经这条路再拿一遍。 */}
+            {cloud && (
+              <IconBtn title={t('workspace.downloadFolder')} onClick={() => void downloadCurrentFolder()}>
+                {downloading ? <Spinner className="w-3 h-3" /> : <DownloadIcon size={12} />}
+              </IconBtn>
+            )}
             <IconBtn title={t('workspace.refresh')} onClick={() => refetch()}>
               <RefreshCwIcon size={12} />
             </IconBtn>
@@ -403,7 +407,10 @@ function Workspace({ sessionId, workingDir, onClose, onPreviewFile, active = tru
             isDir={false}
             size={entry.size}
             onOpen={() => onPreviewFile?.(entry.path)}
-            onDownload={() => void downloadOne(entry.path, entry.name)}
+            onOpenLocal={(!cloud && window.electronAPI?.openPath)
+              ? (() => void window.electronAPI!.openPath!(entry.path))
+              : undefined}
+            onDownload={cloud ? (() => void downloadOne(entry.path, entry.name)) : undefined}
             onRemove={cloud ? (() => void deleteOne(entry.path, entry.name)) : undefined}
             removeDestructive
           />
@@ -451,29 +458,51 @@ function BreadcrumbChip({ label, active, onClick }: { label: string; active: boo
   )
 }
 
-function FileRow({ name, isDir, size, onNavigate, onOpen, onRemove, onDownload, onDropFiles, removeDestructive }: {
+function FileRow({ name, isDir, size, onNavigate, onOpen, onOpenLocal, onRemove, onDownload, onDropFiles, removeDestructive }: {
   name: string
   isDir: boolean
   size?: number | null
   onNavigate?: () => void
   onOpen?: () => void
+  // 双击 → 交给 OS 用系统默认程序打开（shell.openPath）。仅本地会话给：云端工作区的文件在
+  // 服务端磁盘上，这台机器上没有那个文件，"本地软件打开"无从谈起——与 openInExplorer 同一个
+  // !cloud 判据。单击仍是应用内预览，双击是另一件事，两者不互斥。
+  onOpenLocal?: () => void
   onRemove?: () => void      // 给了就在行尾显示移除/删除按钮（草稿待上传清单、云端工作区）
   onDownload?: () => void    // 给了就在行尾显示下载按钮（悬停可见）
   onDropFiles?: (e: React.DragEvent) => void   // 仅文件夹：往这一行拖文件 → 复制进该文件夹
   /** 真删文件（垃圾桶 + 危险色）；缺省是"从清单里移除"（X），后者不动磁盘。 */
   removeDestructive?: boolean
 }) {
+  const { t } = useI18n()
   const { Icon, color } = isDir
     ? { Icon: FolderIcon, color: '#f59e0b' }
     : getFileStyle(name)
 
   const accentColor = isDir ? '#f59e0b' : 'var(--blue)'
+  // 单击预览会切到「预览」tab，把这块文件列表 display:none 掉（见 App.tsx）——
+  // 第二下点击落在已隐藏的元素上，浏览器原生 dblclick 判定不到，天然测不出双击。
+  // 只能手动判：单击先不立刻预览，攒一小段时间等第二下；到点没等到才当真的单击。
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (clickTimerRef.current) clearTimeout(clickTimerRef.current) }, [])
+  function handleClick() {
+    if (isDir) { onNavigate?.(); return }
+    if (!onOpenLocal) { onOpen?.(); return }   // 云端/无 electronAPI：没有"双击"这回事，照旧立即预览
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current)
+      clickTimerRef.current = null
+      onOpenLocal()
+      return
+    }
+    clickTimerRef.current = setTimeout(() => { clickTimerRef.current = null; onOpen?.() }, 250)
+  }
   const [dropHover, setDropHover] = useState(false)   // 拖文件悬停在该文件夹行上时高亮
   const canDropInto = isDir && !!onDropFiles
 
   return (
     <div
-      onClick={() => { if (isDir) onNavigate?.(); else onOpen?.() }}
+      onClick={handleClick}
+      title={onOpenLocal ? t('workspace.doubleClickToOpenLocal') : undefined}
       // 拖到聊天输入框 → 在光标处插入文件名（输入框的 onDrop 接收）
       draggable
       onDragStart={e => { e.dataTransfer.setData('text/plain', name); e.dataTransfer.effectAllowed = 'copy' }}
