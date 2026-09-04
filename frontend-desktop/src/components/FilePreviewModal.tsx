@@ -15,6 +15,7 @@ import { ExcelViewer } from '@/preview/viewers/ExcelViewer'
 import { PdfViewer } from '@/preview/viewers/PdfViewer'
 import { PptxViewer } from '@/preview/viewers/PptxViewer'
 import { HtmlViewer } from '@/preview/viewers/HtmlViewer'
+import { DrawioViewer } from '@/preview/viewers/DrawioViewer'
 import { PreviewBaseProvider } from '@/preview/previewBase'
 
 interface Props {
@@ -107,6 +108,8 @@ function PreviewBody({ path, onClose, onNavigate, active = true }: Omit<Props, '
             {type === 'excel' && <ExcelViewer key={heavyKey} path={path} filename={name} reloadToken={reloadToken} />}
             {type === 'pdf' && <PdfViewer key={heavyKey} path={path} filename={name} reloadToken={reloadToken} />}
             {type === 'pptx' && <PptxViewer key={heavyKey} path={path} filename={name} reloadToken={reloadToken} />}
+            {/* Draw.io：重型隔离上下文——重挂重建（旧 viewer 状态不残留），reloadToken 同时透传。 */}
+            {type === 'drawio' && <DrawioViewer key={heavyKey} path={path} filename={name} reloadToken={reloadToken} />}
             {type === 'binary' && (
               <div className="flex h-full items-center justify-center text-sm" style={{ color: 'var(--t3)' }}>
                 {t('filePreview.unsupported', { ext: ext || t('filePreview.unknownExt') })}
