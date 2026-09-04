@@ -26,6 +26,19 @@ from netlivecowork.cowork.guards.local_skill import CoworkScopedLocalSkillProvid
 from netlivecowork.providers.watcher import skill_tree_stamp
 
 
+@pytest.fixture(autouse=True)
+def _current_event_loop():
+    """_start_watcher 用 asyncio.get_event_loop() 取投递目标。生产路径在 lifespan 的
+    运行中 loop 里调用没有问题；但 pytest 里任何先行测试的 asyncio.run() 退出时会把
+    主线程当前 loop 置空（set_event_loop(None)），再 get_event_loop() 就抛
+    "no current event loop"。这里给本文件所有用例兜一个当前 loop。"""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    yield loop
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    loop.close()
+
+
 # ── 3.3：目录准备与注册 ───────────────────────────────────────────────────────
 
 
