@@ -1,0 +1,25 @@
+{
+  "name": "diagrams.net read-only viewer",
+  "version": "31.4.2",
+  "source": "https://viewer.diagrams.net/js/viewer.min.js",
+  "retrieved": "2026-09-04",
+  "license": "Apache-2.0",
+  "files": [
+    {
+      "path": "viewer.min.js",
+      "origin": "upstream",
+      "sha256": "3810b944463d342daa438e0bf7793addbcc96531269c4aea26907142b1a38d0a",
+      "bytes": 2682265
+    }
+  ],
+  "upgradeTriggers": {
+    "security": "diagrams.net / drawio 发布涉及 XSS 或沙箱逃逸的安全公告（GitHub jgraph/drawio security advisories）时必须升级并重跑 spike 与全套测试。",
+    "formatCompatibility": "用户图表出现新版 drawio 专有特性（新 shape/stencil/样式键）导致本版本渲染缺块或解析失败时升级，并用 5.1 的 fixtures 复验。",
+    "chromiumCompatibility": "Electron 升级带来 Chromium 大版本变更、viewer 运行时（SVG/字体/事件 API）出现回归时升级，并重跑打包 smoke。"
+  },
+  "notes": [
+    "上游文件逐字节固定，不做任何本地改动；校验和见 files[].sha256，由 src/preview/viewers/drawio/vendor.test.ts 钉住。",
+    "运行期隔离（sandbox iframe + CSP + MathJax 存根）见 public/drawio-preview/ 与 spike 报告 frontend-desktop/spike/drawio/REPORT.md。",
+    "升级流程：换版本目录 -> 重算校验和 -> 改本 manifest -> 重跑 vendor.test 与 spike -> 作为显式依赖变更提交审查。"
+  ]
+}
