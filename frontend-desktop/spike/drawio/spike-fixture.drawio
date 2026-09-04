@@ -1,0 +1,35 @@
+<mxfile host="spike" modified="2026-09-04T00:00:00.000Z" agent="feasibility-spike" version="31.4.2">
+  <diagram id="page-1" name="第一页·中文">
+    <mxGraphModel dx="800" dy="600" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="600" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="p1-n1" value="中文节点·报告" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="80" y="80" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-n2" value="中文节点·清洗" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="360" y="80" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="p1-n1" target="p1-n2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="page-2" name="第二页·多图层">
+    <mxGraphModel dx="800" dy="600" grid="0" pageWidth="850" pageHeight="600">
+      <root>
+        <mxCell id="p2-0" />
+        <mxCell id="p2-default" name="默认层" parent="p2-0" />
+        <mxCell id="p2-layerA" value="图层A·底图" style="folder" parent="p2-0" connectable="0" vertex="0" />
+        <mxCell id="p2-layerB" value="图层B·标注" style="folder" parent="p2-0" connectable="0" vertex="0" />
+        <mxCell id="p2-a1" value="底图设备框" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="p2-layerA">
+          <mxGeometry x="80" y="80" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-b1" value="标注·仅图层B可见" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontColor=#cc0000;" vertex="1" parent="p2-layerB">
+          <mxGeometry x="120" y="220" width="220" height="30" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

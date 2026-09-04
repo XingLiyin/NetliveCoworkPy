@@ -1,0 +1,40 @@
+<!doctype html>
+<!-- spike 父页面：模拟真实 DrawioViewer 的宿主行为。
+     建一个 sandbox="allow-scripts"（无 allow-same-origin）iframe，
+     收到 ready 后把 fixture 以 transferable ArrayBuffer 发进去渲染，
+     并提供 __spike 命令入口供 runner 驱动（setPage/setLayerVisible/zoom/fit）。 -->
+<html>
+<body style="margin:0">
+<iframe id="frame" sandbox="allow-scripts" src="bootstrap.html"
+        style="width:900px;height:600px;border:1px solid #ccc"></iframe>
+<script>
+(function () {
+  var iframe = document.getElementById('frame');
+  var token = null;
+  window.__spikeEvents = [];
+  window.__spikeState = null;
+
+  window.addEventListener('message', function (ev) {
+    if (ev.source !== iframe.contentWindow) return;    // event.source 校验，不只看 origin
+    var msg = ev.data;
+    if (!msg || (msg.token !== token && msg.type !== 'ready')) return;
+    if (msg.type === 'ready') {
+      token = msg.token;
+      fetch('spike-fixture.drawio')
+        .then(function (r) { return r.arrayBuffer(); })
+        .then(function (buf) {
+          iframe.contentWindow.postMessage({ type: 'render', token: token, buf: buf }, '*', [buf]);
+        });
+      return;
+    }
+    if (msg.type === 'rendered') { window.__spikeState = msg.state; window.__spikeEvents.push(msg.type); }
+    if (msg.type === 'error') { window.__spikeState = { error: msg.code, message: msg.message }; window.__spikeEvents.push(msg.type); }
+  });
+
+  window.__spike = function (cmd) {
+    iframe.contentWindow.postMessage(Object.assign({ token: token }, cmd), '*');
+  };
+})();
+</script>
+</body>
+</html>
