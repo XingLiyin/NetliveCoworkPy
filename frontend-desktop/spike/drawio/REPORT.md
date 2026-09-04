@@ -57,3 +57,14 @@ cd frontend-desktop && node spike/drawio/run-spike.mjs
 ```
 
 （viewer.min.js 2.6MB 不入 git；正式固化在任务 1.3 的 public/vendor 目录。）
+
+## 任务 1.4 补充：vendored 副本断网验证（3/3 通过）
+
+对 `public/vendor/drawio/31.4.2/` 正式副本 + `public/drawio-preview/` 生产 bootstrap，
+用 Playwright 路由拦截把一切非 127.0.0.1 请求硬 abort（连尝试都记为失败）：
+
+- PASS vendored viewer + 生产 bootstrap 断网渲染出 SVG（viewer/标准 shapes/系统字体无需 XHR）
+- PASS 多页面解析正常
+- PASS 零外部请求尝试（CSP + MathJax 存根兜底）
+
+复跑：`node spike/drawio/run-offline-verify.mjs`

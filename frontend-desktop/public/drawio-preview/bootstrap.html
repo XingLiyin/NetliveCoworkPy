@@ -1,0 +1,30 @@
+<!doctype html>
+<!-- Draw.io 只读预览的隔离壳（生产版，任务 4.x 继续完善协议细节）。
+ *  父页面以 <iframe sandbox="allow-scripts" src="<appBase>/drawio-preview/bootstrap.html">
+ *  挂载本文档；本文档自带只作用于自身的 CSP（connect-src 'none' 断掉一切外联）。
+ *  脚本顺序有讲究（spike 验证）：pre.js（MathJax 存根，挡 initMath 外联尝试）→
+ *  官方 viewer（逐字节校验和锁定，见 vendor/drawio/<version>/manifest.json）→
+ *  bootstrap.js（协议与渲染逻辑）。所有引用相对路径，随应用 base 走（本地/云端会话同构）。 -->
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none';
+               script-src 'self';
+               style-src 'self' 'unsafe-inline';
+               img-src 'self' data: blob:;
+               font-src 'self' data:;
+               connect-src 'none';
+               form-action 'none'; base-uri 'none'">
+<style>
+  html, body { margin: 0; height: 100%; background: #fff; }
+  #graph { position: absolute; inset: 0; }
+</style>
+</head>
+<body>
+<div id="graph"></div>
+<script src="pre.js"></script>
+<script src="../vendor/drawio/31.4.2/viewer.min.js"></script>
+<script src="bootstrap.js"></script>
+</body>
+</html>
