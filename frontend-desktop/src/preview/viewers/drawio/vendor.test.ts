@@ -1,37 +1,32 @@
-/** vendor/drawio 资源完整性（任务 1.3）。
+/** vendor/drawio 资源完整性（任务 1.3）+ 构建产物布局（任务 6.2）。
  *
- * 钉三件事：
+ *  钉三件事：
  *   1. manifest 里的每个文件都存在、SHA-256 与清单一致——上游 viewer 是逐字节固定的
  *      黑盒，改动必须以"显式换版本 + 改清单"的方式过审，不许悄悄漂移。
  *   2. 版本目录名与 manifest.version 一致——升级 = 换目录 + 改清单 + 重跑本测试。
- *   3. 无 CDN fallback：vendor 内文件的引用一律相对路径，不出现绝对 http(s) 源址；
- *      viewer.min.js 本体按校验和锁定（它内部存在的文档 URL 字符串不构成加载行为，
- *      由 bootstrap 的 CSP 与 MathJax 存根兜底，见 spike 报告）。
+ *   3. 无 CDN fallback：自有加载文件只含相对引用；官方文件按校验和锁定。
+ *  6.2 部分：build 后 dist 与 public 侧逐字节一致、bootstrap 三件套在位、不带 fixtures。
  */
 import { describe, it, expect } from 'vitest'
 import { createHash } from 'node:crypto'
 import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 
-// vitest 的 cwd 即 frontend-desktop（jsdom 环境下 import.meta.url 不是 file: 协议，不可用）。
 const VENDOR_ROOT = path.join(process.cwd(), 'public/vendor/drawio')
 
-describe('vendor/drawio 固定资源', () => {
-  const manifestPath = findManifest()
-  const manifest = manifestPath
-    ? JSON.parse(readFileSync(manifestPath, 'utf-8'))
-    : null
-
-  function findManifest(): string | null {
-    // manifest 在版本目录里；版本目录名必须与 manifest.version 一致（下面会钉）。
-    if (!existsSync(VENDOR_ROOT)) return null
-    for (const d of readdirSync(VENDOR_ROOT)) {
-      const p = path.join(VENDOR_ROOT, d, 'manifest.json')
-      if (statSync(path.join(VENDOR_ROOT, d)).isDirectory() && existsSync(p)) return p
-    }
-    return null
+function findManifest(): string | null {
+  if (!existsSync(VENDOR_ROOT)) return null
+  for (const d of readdirSync(VENDOR_ROOT)) {
+    const p = path.join(VENDOR_ROOT, d, 'manifest.json')
+    if (statSync(path.join(VENDOR_ROOT, d)).isDirectory() && existsSync(p)) return p
   }
+  return null
+}
 
+const manifestPath = findManifest()
+const manifest = manifestPath ? JSON.parse(readFileSync(manifestPath, 'utf-8')) : null
+
+describe('vendor/drawio 固定资源', () => {
   it('存在版本目录与 manifest', () => {
     expect(manifest, 'public/vendor/drawio/<version>/manifest.json 缺失').not.toBeNull()
     expect(manifest!.version).toMatch(/^\d+\.\d+\.\d+$/)
@@ -65,8 +60,7 @@ describe('vendor/drawio 固定资源', () => {
   it('LICENSE 与 NOTICE 随包（Apache-2.0 归属要求）', () => {
     const dir = path.dirname(manifestPath!)
     expect(existsSync(path.join(dir, 'LICENSE')), 'LICENSE 缺失').toBe(true)
-    const license = readFileSync(path.join(dir, 'LICENSE'), 'utf-8')
-    expect(license).toContain('Apache License')
+    expect(readFileSync(path.join(dir, 'LICENSE'), 'utf-8')).toContain('Apache License')
     expect(existsSync(path.join(dir, 'NOTICE')), 'NOTICE 缺失').toBe(true)
   })
 
@@ -89,5 +83,32 @@ describe('vendor/drawio 固定资源', () => {
       const absRefs = text.match(/(src|href)\s*=\s*["']https?:\/\//g) ?? []
       expect(absRefs, `${f.path} 含绝对源址引用（CDN fallback？）`).toEqual([])
     }
+  })
+})
+
+describe('构建产物布局（任务 6.2：dist 与 manifest 一致，未构建时跳过）', () => {
+  const DIST = path.join(process.cwd(), 'dist')
+  const itBuilt = existsSync(DIST) ? it : it.skip
+
+  itBuilt('dist/vendor/drawio/<version>/ 与 public 侧逐字节一致（含许可证与 manifest）', () => {
+    const src = path.dirname(manifestPath!)
+    const dst = path.join(DIST, 'vendor', 'drawio', manifest!.version)
+    expect(existsSync(dst), 'dist 缺 vendor/drawio/<version>').toBe(true)
+    for (const f of manifest!.files as { path: string }[]) {
+      const a = readFileSync(path.join(src, f.path))
+      const b = readFileSync(path.join(dst, f.path))
+      expect(createHash('sha256').update(b).digest('hex')).toBe(
+        createHash('sha256').update(a).digest('hex'))
+    }
+    for (const extra of ['LICENSE', 'NOTICE', 'manifest.json']) {
+      expect(existsSync(path.join(dst, extra)), `dist 缺 ${extra}`).toBe(true)
+    }
+  })
+
+  itBuilt('dist/drawio-preview/ 含 bootstrap 三件套，且不含 fixtures（生产不带测试图）', () => {
+    for (const f of ['bootstrap.html', 'bootstrap.js', 'pre.js']) {
+      expect(existsSync(path.join(DIST, 'drawio-preview', f)), `dist 缺 ${f}`).toBe(true)
+    }
+    expect(existsSync(path.join(DIST, 'drawio-preview', 'fixtures')), 'dist 不应携带 fixtures').toBe(false)
   })
 })

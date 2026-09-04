@@ -112,7 +112,7 @@ const waitState = (page, cond, ms = 12000) => page.waitForFunction(cond, undefin
 try {
   // ── 5.1 格式矩阵 ─────────────────────────────────────────────
   {
-    const p = await openFixture('/drawio-preview/fixtures/compressed.drawio')
+    const p = await openFixture('/fixtures/compressed.drawio')
     try { await waitState(p, '!!(window.__state && window.__state.svg)') }
     catch (e) {
       console.log('[diag] events =', JSON.stringify(await p.evaluate(() => window.__events)))
@@ -126,14 +126,14 @@ try {
     await p.close()
   }
   {
-    const p = await openFixture('/drawio-preview/fixtures/embedded-image.drawio')
+    const p = await openFixture('/fixtures/embedded-image.drawio')
     await waitState(p, '!!(window.__state && window.__state.svg)')
     const n = await frameOf(p).evaluate(() => document.querySelectorAll('#graph image, #graph img').length)
     check('5.1 内嵌图片（data: URI）渲染', n > 0, `image nodes=${n}`)
     await p.close()
   }
   {
-    const p = await openFixture('/drawio-preview/fixtures/unknown-stencil.drawio')
+    const p = await openFixture('/fixtures/unknown-stencil.drawio')
     await waitState(p, '!!(window.__state && window.__state.svg)')
     const evs = await p.evaluate(() => window.__events)
     const svgText = await frameOf(p).evaluate(() => (document.querySelector('#graph svg') || { textContent: '' }).textContent)
@@ -143,7 +143,7 @@ try {
     await p.close()
   }
   {
-    const p = await openFixture('/drawio-preview/fixtures/invalid.drawio')
+    const p = await openFixture('/fixtures/invalid.drawio')
     await p.waitForFunction(() => window.__events.some(e => String(e).startsWith('error')), null, { timeout: 12000 })
     const evs = await p.evaluate(() => window.__events)
     check('5.1 非法 XML → 可恢复错误（无在线 fallback）', evs.some(e => String(e).startsWith('error')), JSON.stringify(evs))
@@ -164,7 +164,7 @@ try {
 
   // ── 4.3 恶意 fixture ─────────────────────────────────────────
   {
-    const p = await openFixture('/drawio-preview/fixtures/malicious.drawio')
+    const p = await openFixture('/fixtures/malicious.drawio')
     await waitState(p, '!!(window.__state && window.__state.svg)')
     const st = await p.evaluate(() => window.__state)
     check('4.3 恶意图表仍渲染出正常节点', st.svg === true)
@@ -216,7 +216,7 @@ try {
 
   // ── 5.3 跨源回归：父页面加载另一 origin 的资源不受影响 ─────────
   {
-    const p = await openFixture('/drawio-preview/fixtures/compressed.drawio')
+    const p = await openFixture('/fixtures/compressed.drawio')
     try { await waitState(p, '!!(window.__state && window.__state.svg)') }
     catch (e) {
       console.log('[diag] events =', JSON.stringify(await p.evaluate(() => window.__events)))
