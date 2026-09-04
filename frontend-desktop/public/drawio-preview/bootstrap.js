@@ -37,11 +37,57 @@
     return s && s.layers ? s.layers.filter(function (l) { return !l.visible; }).map(function (l) { return l.id; }) : [];
   }
 
+  function pageFromDiagram(d) {
+    var modelEl = d.getElementsByTagName('mxGraphModel')[0];
+    if (!modelEl) {
+      // 压缩形态：<diagram> 的文本是 base64(raw-deflate(encodeURIComponent(xml)))，
+      // Graph.decompress 内置 pako（随 viewer.min.js 打包），未压缩分支已在上面处理。
+      var text = (d.textContent || '').replace(/^\s+|\s+$/g, '');
+      if (!text) return null;
+      try {
+        var xml = Graph.decompress(text);
+        var m2 = mxUtils.parseXml(xml).documentElement;
+        if (!m2 || m2.nodeName !== 'mxGraphModel') return null;
+        return { id: d.getAttribute('id') || '', name: d.getAttribute('name') || '', xml: mxUtils.getXml(m2) };
+      } catch (e) { return null; }
+    }
+    return { id: d.getAttribute('id') || '', name: d.getAttribute('name') || '', xml: mxUtils.getXml(modelEl) };
+  }
+
   function parsePages(docEl) {
-    return Array.prototype.map.call(docEl.getElementsByTagName('mxGraphModel'), function (m) {
-      var d = m.parentNode;                        // <diagram>
-      return { id: d.getAttribute('id') || '', name: d.getAttribute('name') || '', xml: mxUtils.getXml(m) };
-    });
+    var out = [];
+    var dias = docEl.getElementsByTagName('diagram');
+    if (dias.length) {
+      for (var i = 0; i < dias.length; i++) {
+        var p = pageFromDiagram(dias[i]);
+        if (p) out.push(p);
+      }
+    } else {
+      // 无 <diagram> 包装的单页明文（少见但存在）：根即模型。
+      var m = docEl.getElementsByTagName('mxGraphModel')[0];
+      if (m) out.push({ id: '', name: '', xml: mxUtils.getXml(m) });
+    }
+    return out;
+  }
+
+  // 未随包 stencil：mxStencilRegistry 查不到的 shape 名 → 非阻塞警告（其余内容照常渲染）。
+  function warnUnknownStencils() {
+    try {
+      if (typeof mxStencilRegistry === 'undefined' || !mxStencilRegistry.getStencil) return;
+      var model = graph.getModel();
+      var names = {};
+      for (var c in model.cells) {
+        var style = model.cells[c] && model.cells[c].style;
+        if (!style) continue;
+        var mch = /(?:^|;)shape=([^;]+)/.exec(style);
+        if (!mch) continue;
+        var name = mch[1];
+        if (/^(rectangle|rounded|ellipse|rhombus|triangle|hexagon|cylinder|actor|cloud|swimlane|process|parallelogram|trapezoid|image|text|label|note|folder|card|table|container)$/.test(name)) continue;
+        if (!mxStencilRegistry.getStencil(name)) names[name] = 1;
+      }
+      var list = Object.keys(names);
+      if (list.length) post({ type: 'warning', message: 'missing-stencils:' + list.join(',') });
+    } catch (e) { /* 检测失败不影响渲染 */ }
   }
 
   function renderPage(index, keep) {
@@ -95,6 +141,7 @@
         if (prevPageId) for (var k = 0; k < pages.length; k++) if (pages[k].id === prevPageId) { idx = k; break; }
         renderPage(idx, keep);
         if (!keep) graph.getView().setScale(1);
+        warnUnknownStencils();
         lastSnapshot = snapshot();
         post({ type: 'rendered', state: lastSnapshot });
       } else if (msg.type === 'setPage') {
