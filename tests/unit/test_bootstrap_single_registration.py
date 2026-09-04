@@ -60,3 +60,29 @@ def test_cloud_skill_provider_also_gets_bash_runner(monkeypatch) -> None:
     assert {p.name for p in provs} == {"local_skill", "cloud_skill"}
     assert all(p._bash_runner is not None for p in provs), \
         {p.name: p._bash_runner for p in provs}
+
+
+# ── fix-local-skill-runtime-refresh：空目录启动 ─────────────────────────────
+
+
+def test_missing_skills_dir_is_created_and_provider_registered(tmp_path) -> None:
+    """全新环境：skills 目录尚不存在 → 先创建目录，再注册恰好一个本地 skill provider。
+
+    注：注册的是 Cowork 包装器还是裸 provider 取决于 cowork 层是否就绪
+    （_cowork_local_skill_wrapper 可能返回 None）——本断言只按 name 计数，
+    包装形态由 guard 测试单独锁定（评审 P1 修正：原任务措辞在无套件环境不成立）。
+    """
+    skills_dir = tmp_path / "skills" / "nested"      # 故意不存在，连父目录都要建
+    hr = build_host_runtime(SimpleNamespace(enable_tools=True, skills_dir=skills_dir))
+    assert skills_dir.is_dir(), "启动时应创建本地 skill 根目录"
+    names = [p.name for p in hr.core.providers.get_capability_providers()]
+    assert names.count("local_skill") == 1, "空目录也要注册本地 skill provider（首次导入依赖它）"
+
+
+def test_empty_existing_skills_dir_still_registers_provider(tmp_path) -> None:
+    """空目录（存在但无内容）同样注册——'空'不是跳过 Provider 的理由。"""
+    skills_dir = tmp_path / "skills"
+    skills_dir.mkdir()
+    hr = build_host_runtime(SimpleNamespace(enable_tools=True, skills_dir=skills_dir))
+    names = [p.name for p in hr.core.providers.get_capability_providers()]
+    assert names.count("local_skill") == 1

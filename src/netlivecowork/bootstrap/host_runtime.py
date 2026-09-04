@@ -197,7 +197,17 @@ def _register_skills(providers, cfg, skills_dir: Path, fs_provider) -> None:
     materialize.prepare_low_root()
 
     # 2) 本地 skill provider（用户自建，永久存）。
-    if skills_dir.exists():
+    # 先确保根目录存在，再无条件注册：全新环境目录尚不存在时若跳过 Provider，
+    # 首次导入的 skill 只能靠重启才进得了运行时（目录都注册不上，watcher 也一样缺席）。
+    # 创建失败 = 降级跳过本地能力（与 optional local-skill 行为一致），但日志必须带
+    # 路径与异常、且不输出任何误导性的 loaded 成功日志。
+    try:
+        skills_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        logger.warning("Skills: 本地 skill 根目录创建失败，跳过本地 skill provider：%s",
+                       skills_dir, exc_info=True)
+        skills_dir = None
+    if skills_dir is not None:
         local_skills = LocalSkillCapabilityProvider(
             skills_dir,
             idle_timeout_sec=cfg.skill_idle_timeout_sec,
@@ -225,8 +235,7 @@ def _register_skills(providers, cfg, skills_dir: Path, fs_provider) -> None:
         #     仅 Windows+pywin32 生效；best-effort、不阻断启动。
         from netlivecowork.low_integrity.activation import label_low_once
         label_low_once(skills_dir, paths.data_dir())
-    else:
-        logger.warning("Skills: skills_dir '%s' not found", skills_dir)
+
 
     # 3) 迁移：已装的市场 skill → 引用（并删本地文件；用户自建的不动）。
     data_dir = paths.data_dir()

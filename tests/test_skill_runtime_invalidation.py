@@ -309,3 +309,53 @@ def test_visibility_flips_with_label_change(primed, monkeypatch):
     owners["demo"] = ["*"]                                  # 恢复通用
     invalidate_local_skill_runtime(registry)
     assert asyncio.run(owned({"mbb"})) == ["demo"]          # 又可见
+
+
+# ── 3.4 全新环境：真实装配（build_host_runtime）→ 首次导入 → 无需重启 ─────────
+
+
+def test_fresh_environment_first_import_needs_no_restart(tmp_path, monkeypatch):
+    """真实装配而不是手拼 Provider：build_host_runtime 在**不存在的** skills 目录上
+    起动（3.2 修复后自动建目录并注册），空索引预热 → 落盘首个 skill → 走路由自己的
+    刷新路径 → 新任务读到正文。全程不重建 runtime。"""
+    from types import SimpleNamespace
+    from netlivecowork.bootstrap import build_host_runtime
+    from netlivecowork.api import deps as deps_mod
+    from netlivecowork.api import skills as skills_api
+
+    skills_dir = tmp_path / "fresh-skills"           # 不存在——全新环境
+    hr = build_host_runtime(SimpleNamespace(enable_tools=False, skills_dir=skills_dir))
+    assert skills_dir.is_dir(), "全新环境启动即创建 skill 根目录"
+
+    providers = hr.core.providers.get_capability_providers()
+    local = [p for p in providers if p.name == "local_skill"]
+    assert len(local) == 1
+    wrapper = local[0]
+    executor = next(p for p in providers if p.name == "skill_executor")
+
+    ctx = ProviderContext(session_id="fresh")
+
+    async def warm():
+        assert (await wrapper.list(ctx)) == []       # 空索引预热
+        await executor._ensure_index(ctx)
+    asyncio.run(warm())
+
+    owners = _FakeOwners()
+    monkeypatch.setattr(deps_mod, "get_runtime_optional", lambda: _RuntimeStub(hr.core.providers))
+    monkeypatch.setattr(skills_api, "_local_owners", lambda: owners)
+    svc = _FakeImportService(skills_dir)
+
+    class _File:
+        async def read(self):
+            return b"zip"
+
+    asyncio.run(skills_api.import_local_skill(file=_File(), coworks="*", service=svc))
+
+    async def after_import():
+        caps = await wrapper.list(ctx)
+        assert [c.name for c in caps] == ["demo"], "首次导入无需重启即可发现"
+        d = await wrapper.load_definition("demo", ctx)
+        assert d is not None and "API 导入的正文" in d.instructions
+        await executor._ensure_index(ctx)
+        assert "local_skill__demo" in executor._index
+    asyncio.run(after_import())
