@@ -50,10 +50,10 @@ describe('DrawioViewer', () => {
     await waitFor(() => expect(postSpy).toHaveBeenCalled())
     const call = postSpy.mock.calls[0] as unknown as unknown[]
     const msg = call[0] as { type: string; token: string }
-    const opts = call[1] as { transfer?: ArrayBuffer[] } | undefined
+    const transfer = call[2] as ArrayBuffer[] | undefined
     expect(msg.type).toBe('render')
     expect(msg.token).toBe(decodeURIComponent(token))
-    expect(opts?.transfer).toEqual([buf])   // transferable：父端不留副本
+    expect(transfer).toEqual([buf])   // transferable：父端不留副本
 
     fireFromFrame({ type: 'rendered', token, state: {
       page: 0, pageCount: 2, scale: 1, svg: true,
