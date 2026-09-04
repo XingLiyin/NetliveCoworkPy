@@ -43,10 +43,22 @@ export function DrawioViewer({ path, reloadToken }: Props) {
   const tokenRef = useRef(makeToken())
   const renderedOnceRef = useRef(false)
   const seqRef = useRef(0)
+  // 字节与 ready 的双向汇合：谁后到谁触发发送。真实浏览器里 iframe 插入 DOM 时
+  // contentWindow 就存在（about:blank），立刻 postMessage 会石沉大海——必须等
+  // bootstrap 报 ready；反之 ready 先到、字节后到，也要在字节到达时补发。
+  const readyRef = useRef(false)
+  const pendingBufRef = useRef<ArrayBuffer | null>(null)
 
   const postToChild = useCallback((cmd: ParentCommand) => {
     iframeRef.current?.contentWindow?.postMessage({ ...cmd, token: tokenRef.current }, '*', cmd.type === 'render' || cmd.type === 'refresh' ? [cmd.buf] : undefined)
   }, [])
+
+  const flushPending = useCallback(() => {
+    const buf = pendingBufRef.current
+    if (!buf || !readyRef.current) return
+    pendingBufRef.current = null
+    postToChild({ type: renderedOnceRef.current ? 'refresh' : 'render', buf })
+  }, [postToChild])
 
   // 握手与状态回流：event.source + token 双验；旧 token 的消息一律拒收。
   useEffect(() => {
@@ -55,7 +67,8 @@ export function DrawioViewer({ path, reloadToken }: Props) {
       const msg = parseChildEvent(ev.data)
       if (!msg || msg.token !== tokenRef.current) return
       if (msg.type === 'ready') {
-        // ready 到了但字节还没到：loader 完成后由 send 发送（见下方的时序护栏）。
+        readyRef.current = true
+        flushPending()
         return
       }
       if (msg.type === 'rendered' || msg.type === 'snapshot') {
@@ -78,6 +91,8 @@ export function DrawioViewer({ path, reloadToken }: Props) {
   useEffect(() => {
     tokenRef.current = makeToken()
     renderedOnceRef.current = false
+    readyRef.current = false          // 新实例：等它自己报 ready
+    pendingBufRef.current = null
     setSnapshot(null)
     setPhase({ kind: 'loading' })
   }, [path])
@@ -92,17 +107,9 @@ export function DrawioViewer({ path, reloadToken }: Props) {
     loadDrawioDocument(path, workspaceBase).then(result => {
       if (cancelled || seq !== seqRef.current) return
       if (result.kind === 'ok') {
-        const send = () => {
-          if (cancelled || seq !== seqRef.current) return
-          postToChild({ type: renderedOnceRef.current ? 'refresh' : 'render', buf: result.buf })
-        }
-        // iframe 可能尚未发 ready：轮询到 contentWindow 可发为止（jsdom/真实环境皆可用的朴素护栏）。
-        const wait = () => {
-          if (cancelled || seq !== seqRef.current) return
-          if (iframeRef.current?.contentWindow) send()
-          else setTimeout(wait, 50)
-        }
-        wait()
+        if (cancelled || seq !== seqRef.current) return
+        pendingBufRef.current = result.buf
+        flushPending()
       } else if (result.kind === 'too-large') {
         clearTimeout(timer); setPhase({ kind: 'too-large' })
       } else {
@@ -110,7 +117,7 @@ export function DrawioViewer({ path, reloadToken }: Props) {
       }
     })
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [path, reloadToken, workspaceBase, postToChild])
+  }, [path, reloadToken, workspaceBase, postToChild, flushPending])
 
   const cmd = (c: ParentCommand) => postToChild(c)
 
@@ -131,7 +138,17 @@ export function DrawioViewer({ path, reloadToken }: Props) {
           )}
           {snapshot.layers.map(l => (
             <label key={l.id} className="flex items-center gap-1 text-xs" style={{ color: 'var(--t2)' }}>
-              <input type="checkbox" checked={l.visible} onChange={e => cmd({ type: 'setLayerVisible', layerId: l.id, visible: e.target.checked })} />
+              <input
+                type="checkbox"
+                checked={l.visible}
+                onChange={e => {
+                  const visible = e.target.checked
+                  // 乐观更新：受控 checkbox 若等 iframe 往返对账会"弹回"（E2E 实测），
+                  // 先本地翻转，rendered 快照回来后自然对齐。
+                  setSnapshot(s => s && { ...s, layers: s.layers.map(x => x.id === l.id ? { ...x, visible } : x) })
+                  cmd({ type: 'setLayerVisible', layerId: l.id, visible })
+                }}
+              />
               {l.name}
             </label>
           ))}

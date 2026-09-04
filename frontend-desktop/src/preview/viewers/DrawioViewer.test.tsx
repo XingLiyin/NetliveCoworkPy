@@ -47,6 +47,9 @@ describe('DrawioViewer', () => {
     mount()
     const token = frame().src.split('#')[1]
     const postSpy = vi.spyOn(frame().contentWindow!, 'postMessage')
+    // 新握手语义：字节要等 bootstrap 报 ready 才发（真实浏览器里 about:blank 阶段的
+    // postMessage 会丢——这正是 E2E 暴露出的时序竞态）。
+    fireFromFrame({ type: 'ready', token })
     await waitFor(() => expect(postSpy).toHaveBeenCalled())
     const call = postSpy.mock.calls[0] as unknown as unknown[]
     const msg = call[0] as { type: string; token: string }
