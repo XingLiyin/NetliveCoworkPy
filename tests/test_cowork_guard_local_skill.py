@@ -229,3 +229,17 @@ async def test_unknown_attributes_fall_through():
     inner = _FakeInner()
     inner.some_new_kernel_method = lambda: 42
     assert _guard(inner).some_new_kernel_method() == 42
+
+
+def test_invalidate_cache_forwards_exactly_once_to_inner():
+    """缓存失效转发：协调器靠这个契约穿透包装层碰到内部目录索引（isinstance 穿不透）。
+    显式方法而非只靠 __getattr__——稳定、可测试，类型工具也看得见。"""
+    inner = _FakeInner()
+    calls: list[str] = []
+    inner.invalidate_cache = lambda: calls.append("inner")
+    g = CoworkScopedLocalSkillProvider(
+        inner, owned_labels_fn=lambda s: None, skill_labels_fn=LABELS.get,
+    )
+    g.invalidate_cache()
+    g.invalidate_cache()          # 幂等语义由内部实现承担，转发本身可重复调用
+    assert calls == ["inner", "inner"]

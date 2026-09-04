@@ -36,33 +36,31 @@ def _http(e: SkillError) -> HTTPException:
     )
 
 
-def _mark_skill_index_dirty() -> None:
-    """云端 skill 的可见性（按当前登录用户过滤）或引用集发生变化后，作废
-    SkillExecutorCapabilityProvider 的缓存索引，让 read_file/list_files/exec_script 能查到
-    新可见/新引用的云端 skill——否则索引停在旧快照（如登录前建的），报 SKILL_NOT_FOUND。
-    best-effort：runtime 未就绪则静默跳过。"""
+def _refresh_local_skill_runtime() -> None:
+    """让本地/引用式 skill 的运行时索引失效：发现索引（模型看得见哪些）+
+    按名执行索引（read_file/exec_script 直取路）两层一起，统一走协调器。
+
+    此前这里（和热更新）各复制一段 isinstance(LocalSkillCapabilityProvider) 循环，
+    但注册表里的实际对象是 Cowork 包装器——类型判断穿不透包装层，内部目录索引
+    从未失效。协调器按失效协议（invalidate_cache()）穿透包装，先 Provider 后 executor。
+
+    best-effort：runtime 未就绪则静默跳过；某个参与者失败不阻断其余（协调器逐项
+    隔离并记录），失败留给下一次通知或重启从磁盘恢复。
+    """
     rt = deps.get_runtime_optional()
     if rt is None:
         return
     try:
-        from ctx_weft.core.orchestrator.skill_executor_capability import (
-            SkillExecutorCapabilityProvider,
+        from netlivecowork.providers.capability.skills.runtime.invalidation import (
+            invalidate_local_skill_runtime,
         )
-        from ctx_weft.providers.capability_skill_local.provider import (
-            LocalSkillCapabilityProvider,
-        )
-        for p in rt.providers.get_capability_providers():
-            # ⚠ **两个都要作废，不是一个。**
-            # executor 管的是 read_file/exec_script 那条按名字直取的路；
-            # local provider 管的是**模型看得见哪些 skill**。只作废前者的现象是：
-            # 用户在技能中心把 skill 勾给了某个 cowork，那个 agent 却说自己没有——
-            # 因为它的能力清单还停在改动之前的快照。热更新那条路两个都做了，这里漏了。
-            if isinstance(p, LocalSkillCapabilityProvider):
-                p.invalidate_cache()
-            elif isinstance(p, SkillExecutorCapabilityProvider):
-                p.mark_dirty()
+        invalidate_local_skill_runtime(rt.providers)
     except Exception:
-        logger.warning("刷新 skill executor 索引失败", exc_info=True)
+        logger.warning("刷新 skill 运行时索引失败", exc_info=True)
+
+
+# 既有名字保留为别名：5 处调用点的语义都是"持久化/可见性变化后作废索引"。
+_mark_skill_index_dirty = _refresh_local_skill_runtime
 
 
 # ── Local skills ──────────────────────────────────────────────────────────────
@@ -88,6 +86,7 @@ async def import_local_skill(
         raise _http(e)
     labels = _parse_labels(coworks)
     _local_owners().set_labels(item["skill_id"], labels)
+    _refresh_local_skill_runtime()   # 文件与归属都已落盘 → 新任务无需重启即可见
     return LocalSkillResponse(**item, coworks=list(labels))
 
 
@@ -191,6 +190,7 @@ def delete_local_skill(
     except SkillError as e:
         raise _http(e)
     _local_owners().forget(skill_id)     # 别留孤儿归属记录
+    _refresh_local_skill_runtime()       # 目录与归属清理完成 → 两层索引一起失效
 
 
 class SetCoworksRequest(BaseModel):

@@ -210,3 +210,67 @@ def test_pull_skill_maps_remote_not_found_to_404():
     with pytest.raises(HTTPException) as e:
         skills_api.pull_skill("r9", {"name": "X", "source": "cowork"}, service=svc)
     assert e.value.status_code == 404
+
+
+# ── 任务 2.1：本地导入/删除的成功边界触发统一运行时刷新 ────────────────────────
+
+def test_import_local_skill_refreshes_runtime_after_persist(monkeypatch):
+    """成功导入：文件解压 + 归属写入之后刷新一次；导入失败（service 抛）不刷新。"""
+    calls: list[str] = []
+    monkeypatch.setattr(skills_api, "_refresh_local_skill_runtime", lambda: calls.append("refresh"))
+
+    class _Svc:
+        def import_skill(self, data):
+            return {"skill_id": "demo", "name": "Demo", "description": "d",
+                    "version": "1.0", "triggers": []}
+
+    class _Boom:
+        def import_skill(self, data):
+            raise SkillError("LOCAL_SKILL_INVALID_ZIP", "bad")
+
+    class _File:
+        async def read(self):
+            return b"zip-bytes"
+
+    import asyncio
+
+    class _Form:
+        pass
+
+    # 成功路径：直接调路由函数（FastAPI Form 依赖在外层，绕开 TestClient）
+    out = asyncio.run(skills_api.import_local_skill(
+        file=_File(), coworks="ipmaster", service=_Svc(),
+    ))
+    assert out.skill_id == "demo"
+    assert calls == ["refresh"]
+
+    # 失败路径：不刷新（持久化没发生，通知没有意义）
+    calls.clear()
+    with pytest.raises(HTTPException):
+        asyncio.run(skills_api.import_local_skill(
+            file=_File(), coworks="*", service=_Boom(),
+        ))
+    assert calls == []
+
+
+def test_delete_local_skill_refreshes_runtime_after_persist(monkeypatch):
+    """本地删除：目录删除 + 归属清理之后刷新一次；删除失败不刷新。"""
+    calls: list[str] = []
+    monkeypatch.setattr(skills_api, "_refresh_local_skill_runtime", lambda: calls.append("refresh"))
+    monkeypatch.setattr(skills_api, "_local_owners", lambda: type("O", (), {"forget": staticmethod(lambda sid: None)})())
+
+    class _Svc:
+        def delete_skill(self, skill_id):
+            pass
+
+    class _Boom:
+        def delete_skill(self, skill_id):
+            raise SkillError("LOCAL_SKILL_NOT_FOUND", "nope")
+
+    skills_api.delete_local_skill("demo", service=_Svc(), ref_store=_FakeRefStore(), reconciler=_FakeReconciler())
+    assert calls == ["refresh"]
+
+    calls.clear()
+    with pytest.raises(HTTPException):
+        skills_api.delete_local_skill("gone", service=_Boom(), ref_store=_FakeRefStore(), reconciler=_FakeReconciler())
+    assert calls == []

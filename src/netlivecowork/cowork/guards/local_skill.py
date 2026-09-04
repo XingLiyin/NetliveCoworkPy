@@ -88,6 +88,16 @@ class CoworkScopedLocalSkillProvider(SkillCapabilityProvider):
     def description(self) -> str:
         return getattr(self._inner, "description", "")
 
+    # ── 缓存失效转发 ────────────────────────────────────────────────────────────
+    # 显式同步且幂等：__getattr__ 理论上可透传，但显式方法是稳定、可测试的契约，
+    # 运行时刷新协调器靠它穿透包装层碰到内部目录索引（isinstance 穿不透包装器）。
+    # 归属不在此清：包装器每次经 skill_labels_fn 现读，本就不存标签快照。
+
+    def invalidate_cache(self) -> None:
+        invalidate = getattr(self._inner, "invalidate_cache", None)
+        if callable(invalidate):
+            invalidate()
+
     # ── 判据 ──────────────────────────────────────────────────────────────────
 
     def _owned(self, ctx: ProviderContext | None) -> set[str] | None:

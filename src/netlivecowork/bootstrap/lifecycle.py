@@ -259,18 +259,25 @@ def _start_watcher(hr: HostRuntime) -> Any:
             logger.info("Hot reload: re-synced %d template(s) from '%s'", count, agents_dir)
         watcher.watch(agents_dir, _on_agents_change)
 
+    # 与 Provider 注册同一立场：目录不存在就先建（全新环境首次导入依赖 watcher 在位），
+    # 建不出来才放弃监控——而不是把"目录还不存在"当成不需要热更新的信号。
+    try:
+        skills_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        logger.warning("Watcher: 本地 skill 根目录创建失败，跳过 skill 监控：%s",
+                       skills_dir, exc_info=True)
     if skills_dir.exists():
-        from ctx_weft.core.orchestrator.skill_executor_capability import SkillExecutorCapabilityProvider
-        from ctx_weft.providers.capability_skill_local.provider import LocalSkillCapabilityProvider
+        from netlivecowork.providers.capability.skills.runtime.invalidation import (
+            invalidate_local_skill_runtime,
+        )
 
         async def _on_skills_change() -> None:
-            for p in hr.core.providers.get_capability_providers():
-                if isinstance(p, LocalSkillCapabilityProvider):
-                    p.invalidate_cache()
-                elif isinstance(p, SkillExecutorCapabilityProvider):
-                    p.mark_dirty()
+            # 统一协调器：按失效协议穿透 Cowork 包装器（isinstance 穿不透），
+            # 两层索引一起失效——与 API 路由同一条路，不再复制类型判断循环。
+            invalidate_local_skill_runtime(hr.core.providers)
             logger.info("Hot reload: skill index invalidated for '%s'", skills_dir)
-        watcher.watch(skills_dir, _on_skills_change)
+        from netlivecowork.providers.watcher import skill_tree_stamp
+        watcher.watch(skills_dir, _on_skills_change, stamp=skill_tree_stamp)
 
     if watcher._entries:
         watcher.start(asyncio.get_event_loop())
