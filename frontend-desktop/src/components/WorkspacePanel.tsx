@@ -4,7 +4,7 @@ import {
   FolderIcon, FileIcon, FileCodeIcon, FileTextIcon, FileImageIcon,
   FileTypeIcon, FileSpreadsheetIcon, PresentationIcon,
   ChevronRightIcon, RefreshCwIcon, FolderOpenIcon, ArrowLeftIcon, FolderInputIcon, XIcon,
-  CloudIcon, UploadCloudIcon, DownloadIcon, Trash2Icon,
+  CloudIcon, UploadCloudIcon, DownloadIcon, Trash2Icon, WorkflowIcon,
 } from 'lucide-react'
 import { fileType, getExt, type PreviewType } from '@/preview/fileType'
 
@@ -594,6 +594,7 @@ const FILE_ICONS: Record<PreviewType, { Icon: FileIconComponent; color: string }
   excel:    { Icon: FileSpreadsheetIcon, color: 'var(--green)' },
   pptx:     { Icon: PresentationIcon,    color: 'var(--amber)' },
   html:     { Icon: FileCodeIcon,        color: 'var(--amber)' },
+  drawio:   { Icon: WorkflowIcon,        color: '#e8710a' },
   image:    { Icon: FileImageIcon,       color: 'var(--green)' },
   code:     { Icon: FileCodeIcon,        color: 'var(--blue)' },
   markdown: { Icon: FileTextIcon,        color: 'var(--teal)' },
